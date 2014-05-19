@@ -1,0 +1,24 @@
+Retrieves the outward facing IP address from your Airport Extreme
+router, and if it has changed, tell freedns.afraid.org.
+
+By checking your router, it avoids generating any internet traffic
+and freedns.afraid.org activity unless your IP changes.
+
+This script has only been tested on MacOS X Lion (10.7) and
+Mavericks (10.9) with an Airport Extreme.  If you have any
+suggestions on making the script more portable or robust, please
+let me know.
+
+
+Directions:
+  0) Adjust PATH if necessary.  No need for MacOS X.
+
+  1) Fill in $dynkey with your dynamic authentication token from
+       http://freedns.afraid.org/dynamic/ .
+
+  2) Fill in $me with your email address.  You can leave it blank
+       if you don't want an email when your IP address changes.
+
+  3) Add an entry to your crontab to run this script periodically.
+       Script can run as you.  It does not require any privileges to run.
+
