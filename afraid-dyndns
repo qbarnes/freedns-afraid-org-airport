@@ -3,29 +3,32 @@
 # router, and if it has changed, tell freedns.afraid.org.
 #
 # By checking your router, it avoids generating any internet traffic
-# and freedns.afraid.org activity unless your IP changes. 
+# and freedns.afraid.org activity unless your IP address changes.
 #
 # Directions:
 # 0) Adjust PATH if necessary.  No need for MacOS X.
-# 1) Fill in $dynkey with your dynamic authentication token from
-#      http://freedns.afraid.org/dynamic/ .
-# 2) Fill in $me with your email address.  You can leave it blank
-#      if you don't want an email when your IP address changes.
+#
+# 1) Create a text file "$HOME/.afraid-dyndns.dynkey" and add one line
+#    to it with your dynamic authentication token from
+#    http://freedns.afraid.org/dynamic/ .
+#
+# 2) Create a text file "$HOME/.afraid-dyndns.email" and add one line
+#    to it with a comma separated list of the email addresses to
+#    notify when the IP address changes.  This file is optional if you
+#    do not want to be notified via email.
+#
 # 3) Add an entry to your crontab to run this script periodically.
-#      Script can run as you.  It does not require any privileges to run.
+#    Script can run as you.  It does not require any privileges to run.
+#
 
 shopt -s extglob
 
 export PATH=/bin:/usr/bin:/sbin:/usr/sbin
 
-typeset ipfile="$HOME/.afraid-dyndns.ip"
-
-typeset dynkey='<Copy your dyndns key here>'
-typeset tellafraid=(\
-	curl -s "http://freedns.afraid.org/dynamic/update.php?$dynkey")
-
-typeset me=''
-typeset tellme=(mail -s 'new ip address' "$me")
+typeset fpfx="$HOME/.afraid-dyndns"
+typeset ipfile="${fpfx}.ip"
+typeset dynkeyfile="${fpfx}.dynkey"
+typeset emailfile="${fpfx}.email"
 
 function Fail
 {
@@ -53,17 +56,35 @@ function AirportIP
 }
 
 
+[[ -r $dynkeyfile ]] || \
+	Fail "Need to create the file '$dynkeyfile' with your key."
+
+typeset dynkey=$(< "$dynkeyfile")
+
+[[ $dynkey == @(+([a-zA-Z0-9])) ]] || Fail "Dynamic key seems bad."
+
+typeset tellafraid=(\
+	curl -s "http://freedns.afraid.org/dynamic/update.php?$dynkey")
+
+
+typeset tellme=''
+if [[ -r $emailfile ]]
+then
+	typeset me=$(< "$emailfile")
+	tellme=(mail -s 'new ip address' "$me")
+fi
+
 typeset ip=$(AirportIP) || Fail "Failed to get Airport IP."
 
 [[ $ip == @(+([0-9]).+([0-9]).+([0-9]).+([0-9])) ]] || \
 	Fail "AirportIP return was invalid: '$ip'."
 
 typeset oldip=""
-[[ ! -r "$ipfile" ]] || oldip=$(< "$ipfile") || Fail "Can't read '$ipfile'."
+[[ ! -r $ipfile ]] || oldip=$(< "$ipfile") || Fail "Can't read '$ipfile'."
 
 if [[ $oldip != $ip ]]
 then
-	[[ -z $me ]] || \
+	[[ -z $tellme ]] || \
 		{ echo -e "Old = $oldip\nNew = $ip" | "${tellme[@]}"; }
 	"${tellafraid[@]}" || \
 		Fail "Failed to tell freedns.afraid.org of IP change."
