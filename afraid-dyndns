@@ -37,34 +37,26 @@ function Fail
 }
 
 # Retrieve the outward facing IP address from Airport Extreme router.
-# http://hints.macworld.com/article.php?story=20091222232613368
 function AirportIP
 {
-	typeset router=$(netstat -nr | \
-			awk '/^0.0.0.0|^default/ {print $2}') \
-			|| return 1
-	typeset gw=$(snmpwalk -Os -c public -v 1 "$router" \
-				iso.3.6.1.2.1.4.21.1.7.0.0.0.0 | \
-				awk '{print $4}') \
-				|| return 1
-	typeset ip=$(snmpwalk -Os -c public -v 1 "$router" \
-				"iso.3.6.1.2.1.4.21.1.7.$gw" | \
-				awk '{print $4}') \
-				|| return 1
-
+        typeset tempfile=$(mktemp -t myip)
+        dns-sd -X > $tempfile &
+        sleep 1
+        killall -9 dns-sd
+        typeset ip=$(grep -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' $tempfile | awk '{print $3}') || return 1
 	echo "$ip"
 }
 
 
+# check for the existence of the dynkeyfile
 [[ -r $dynkeyfile ]] || \
 	Fail "Need to create the file '$dynkeyfile' with your key."
 
-typeset dynkey=$(< "$dynkeyfile")
-
-[[ $dynkey == @(+([a-zA-Z0-9])) ]] || Fail "Dynamic key seems bad."
-
-typeset tellafraid=(\
-	curl -s "http://freedns.afraid.org/dynamic/update.php?$dynkey")
+# read the dynkey file into an array and validate
+IFS=$'\r\n' GLOBALIGNORE='*' :; typeset dynkeys=($(cat $dynkeyfile))
+for dynkey in "${dynkeys[@]}"; do
+	[[  $dynkey == @(+([a-zA-Z0-9])) ]] || Fail "Dynamic key seems bad."
+done
 
 
 typeset tellme=''
@@ -84,9 +76,20 @@ typeset oldip=""
 
 if [[ $oldip != $ip ]]
 then
+        # ip address has changed, so tell  me
 	[[ -z $tellme ]] || \
 		{ echo -e "Old = $oldip\nNew = $ip" | "${tellme[@]}"; }
-	"${tellafraid[@]}" || \
-		Fail "Failed to tell freedns.afraid.org of IP change."
+
+        # loop over all of my keys
+	for dynkey in "${dynkeys[@]}"
+	do
+		# construct the endpoint update with the dynkey
+		typeset tellafraid=(\
+			curl -s "http://freedns.afraid.org/dynamic/update.php?$dynkey")
+
+                # check for success of update
+		"${tellafraid[@]}" || \
+			echo "Failed to tell freedns.afraid.org of IP change." >&2
+	done
 	echo "$ip" > "$ipfile"
 fi
