@@ -41,7 +41,7 @@ function Fail
 function AirportIP
 {
 	typeset router=$(netstat -nr | \
-			awk '/^0.0.0.0|^default/ {print $2}') \
+			awk '/^0.0.0.0|^default/ {print $2; exit}') \
 			|| return 1
 	typeset gw=$(snmpwalk -Os -c public -v 1 "$router" \
 				iso.3.6.1.2.1.4.21.1.7.0.0.0.0 | \
